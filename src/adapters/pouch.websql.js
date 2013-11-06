@@ -13,7 +13,7 @@ function quote(str) {
 }
 
 var POUCH_VERSION = 1;
-var POUCH_SIZE = 5 * 1024 * 1024;
+var POUCH_SIZE = (5 * 1024 * 1024) - 1;
 
 // The object stores created for each database
 // DOC_STORE stores the document meta data, its revision history and state
