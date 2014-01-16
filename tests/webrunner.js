@@ -1,5 +1,3 @@
-/*globals $:false, console: false */
-
 "use strict";
 
 // use query parameter testFiles if present,
@@ -8,47 +6,25 @@ var testFiles = window.location.search.match(/[?&]testFiles=([^&]+)/);
 testFiles = testFiles && testFiles[1].split(',') || [];
 var started = new Date();
 if (!testFiles.length) {
-  // If you want to run performance tests, uncomment these tests
-  // and comment out the testFiles below
-  //testFiles = [
-  //  'perf.attachments.js'
-  //];
-
-  // Temporarily disable tests that can leave CouchDB in non Admin Party
-  // 'test.cors.js'
-  // 'test.auth_replication.js',
-  testFiles = ['test.basics.js', 'test.all_dbs.js', 'test.changes.js',
-               'test.bulk_docs.js', 'test.all_docs.js', 'test.conflicts.js',
-               'test.revs_diff.js',
-               'test.replication.js', 'test.views.js', 'test.taskqueue.js',
-               'test.design_docs.js', 'test.issue221.js', 'test.http.js',
-               'test.gql.js', 'test.compaction.js', 'test.get.js',
-               'test.attachments.js', 'test.uuids.js', 'test.slash_id.js'];
+  testFiles = [
+    'test.setup.js',
+    'test.basics.js', 'test.all_dbs.js', 'test.changes.js',
+    'test.bulk_docs.js', 'test.all_docs.js', 'test.conflicts.js',
+    'test.revs_diff.js',
+    'test.replication.js', 'test.views.js', 'test.taskqueue.js',
+    'test.design_docs.js', 'test.issue221.js', 'test.http.js',
+    'test.compaction.js', 'test.get.js',
+    'test.attachments.js', 'test.uuids.js', 'test.slash_id.js',
+    'test.worker.js'
+  ];
 }
 
 testFiles.unshift('test.utils.js');
 
-var sourceFiles = {
-  'dev': ['../src/deps/md5.js',
-          '../src/deps/blob.js',
-          '../src/deps/uuid.js',
-          '../src/deps/extend.js',
-          '../src/deps/ajax.js',
-          '../src/pouch.utils.js',
-          '../src/pouch.collate.js',
-          '../src/pouch.merge.js',
-          '../src/pouch.js',
-          '../src/pouch.adapter.js',
-          '../src/adapters/pouch.http.js',
-          '../src/adapters/pouch.idb.js',
-          '../src/adapters/pouch.websql.js',
-          '../src/pouch.replicate.js',
-          '../src/plugins/pouchdb.gql.js',
-          '../src/plugins/pouchdb.mapreduce.js',
-          '../src/plugins/pouchdb.spatial.js'],
-  'release': ['../dist/pouchdb-nightly.js', '../src/deps/extend.js', '../src/deps/ajax.js'],
-  'release-min': ['../dist/pouchdb-nightly.min.js', '../src/deps/extend.js', '../src/deps/ajax.js']
-};
+// The tests use Pouch.extend and Pouch.ajax directly (for now)
+var sourceFiles = [
+  '../dist/pouchdb-nightly.js'
+];
 
 // Thanks to http://engineeredweb.com/blog/simple-async-javascript-loader/
 function asyncLoadScript(url, callback) {
@@ -95,9 +71,6 @@ function asyncParForEach(array, fn, callback) {
   });
 }
 
-var source = window.location.search.match(/[?&]test=([^&]+)/);
-source = source && source[1] || 'dev';
-
 QUnit.config.testTimeout = 60000;
 
 QUnit.jUnitReport = function(report) {
@@ -105,10 +78,11 @@ QUnit.jUnitReport = function(report) {
   report.started = started;
   report.completed = new Date();
   report.passed = (report.results.failed === 0);
+  delete report.xml;
   window.testReport = report;
 };
 
-asyncParForEach(sourceFiles[source], asyncLoadScript, function() {
+asyncParForEach(sourceFiles, asyncLoadScript, function() {
   asyncParForEach(testFiles, asyncLoadScript, function() {
     startQUnit();
   });

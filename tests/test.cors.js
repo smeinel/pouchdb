@@ -1,27 +1,13 @@
-/*globals initTestDB: false, emit: true, generateAdapterUrl: false */
-/*globals PERSIST_DATABASES: false, utils: true, extend: true */
-/*globals ajax: true, strictEqual: false, Pouch: true */
-/*globals cleanupTestDatabases: false, openTestDB: true, putAfter: false */
-/*globals setupAdminAndMemberConfig:false, tearDownAdminAndMemberConfig:false */
-/*globals cleanUpCors:false, enableCORS:false, enableCORSCredentials:false, call:false */
-/*globals disableCORS: false, disableCORSCredentials: false, deleteCookieAuth:false */
-
 'use strict';
 
 var adapter = 'http-1';
-var qunit = module;
 
 if (typeof module !== undefined && module.exports) {
-  Pouch = require('../src/pouch.js');
-  utils = require('./test.utils.js');
-
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
-  }
-  qunit = QUnit.module;
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
 }
 
-qunit('cors-adapter:', {
+QUnit.module('cors-adapter:', {
   setup: function () {
     this.name = generateAdapterUrl(adapter);
   },
@@ -74,7 +60,7 @@ asyncTest('Cookie Authentication with Admin.', function () {
 
       //--Run tests (NOTE: because of how this is run, COR's credentials must be sent so that the server receives the auth cookie)
       var host = 'http://' + name.split('/')[2] + '/';
-      ajax({
+      Pouch.ajax({
         method: 'POST',
         url: host + '_session',
         json: false,
@@ -125,7 +111,7 @@ asyncTest('Cookie Authentication with User.', 3, function () {
 
       //--Run tests (NOTE: because of how this is run, COR's credentials must be sent so that the server recieves the auth cookie)
       var host = 'http://' + name.split('/')[2] + '/';
-      ajax({
+      Pouch.ajax({
         method: 'POST',
         url: host + '_session',
         json: false,
@@ -206,7 +192,7 @@ asyncTest('Create DB as Admin with CORS Credentials.', 2, function () {
   setupAdminAndMemberConfig(this.name, function (err, info) {
     //--Run tests
     var host = 'http://' + name.split('/')[2] + '/';
-      ajax({
+      Pouch.ajax({
         method: 'POST',
         url: host + '_session',
         json: false,
@@ -236,7 +222,7 @@ asyncTest('Add Doc to DB as User with CORS Credentials.', 2, function () {
 
     //--Run tests
     var host = 'http://' + name.split('/')[2] + '/';
-      ajax({
+      Pouch.ajax({
         method: 'POST',
         url: host + '_session',
         json: false,
@@ -268,7 +254,7 @@ asyncTest('Delete DB as Admin with CORS Credentials.', 3, function () {
 
     //--Run tests
     var host = 'http://' + name.split('/')[2] + '/';
-      ajax({
+      Pouch.ajax({
         method: 'POST',
         url: host + '_session',
         json: false,

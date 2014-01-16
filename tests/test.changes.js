@@ -1,25 +1,11 @@
-/*globals initTestDB, emit: true, generateAdapterUrl */
-/*globals PERSIST_DATABASES, initDBPair, utils: true */
-/*globals ajax: true, LevelPouch: true, putTree, deepEqual */
-/*globals cleanupTestDatabases, strictEqual, writeDocs, PouchDB */
-
 "use strict";
 
 var adapters = ['http-1', 'local-1'];
-var qunit = module;
 var is_browser = true;
-var LevelPouch;
-var utils;
 
 if (typeof module !== undefined && module.exports) {
-  Pouch = require('../src/pouch.js');
-  LevelPouch = require('../src/adapters/pouch.leveldb.js');
-  utils = require('./test.utils.js');
-
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
-  }
-  qunit = QUnit.module;
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
   is_browser = false;
 }
 
@@ -27,14 +13,14 @@ adapters.map(function(adapter) {
 
   QUnit.module("changes: " + adapter, {
     setup : function () {
-      this.name = generateAdapterUrl(adapter);
-      Pouch.enableAllDbs = true;
+      this.name = testUtils.generateAdapterUrl(adapter);
+      PouchDB.enableAllDbs = true;
     },
-    teardown: cleanupTestDatabases
+    teardown: testUtils.cleanupTestDatabases
   });
 
   asyncTest("All changes", function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.post({test:"somestuff"}, function (err, info) {
         db.changes({
           onChange: function (change) {
@@ -52,12 +38,22 @@ adapters.map(function(adapter) {
       {_id: "0", integer: 0},
       {_id: "1", integer: 1},
       {_id: "2", integer: 2},
-      {_id: "3", integer: 3}
+      {_id: "3", integer: 3},
+      {_id: "4", integer: 4},
+      {_id: "5", integer: 5},
+      {_id: "6", integer: 6},
+      {_id: "7", integer: 7},
+      {_id: "8", integer: 9},
+      {_id: "9", integer: 9},
+      {_id: "10", integer: 10},
+      {_id: "11", integer: 11},
+      {_id: "12", integer: 12},
+      {_id: "13", integer: 13}
     ];
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs}, function(err, info) {
         db.changes({
-          since: 2,
+          since: 12,
           complete: function(err, results) {
             equal(results.results.length, 2, 'Partial results');
             start();
@@ -74,7 +70,7 @@ adapters.map(function(adapter) {
       {_id: "2", integer: 2},
       {_id: "3", integer: 3}
     ];
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs}, function(err, info) {
         db.changes({
           since: 2,
@@ -101,10 +97,10 @@ adapters.map(function(adapter) {
       {_id: "3", integer: 12}
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       // we use writeDocs since bulkDocs looks to have undefined
       // order of doing insertions
-      writeDocs(db, docs1, function(err, info) {
+      testUtils.writeDocs(db, docs1, function(err, info) {
         docs2[0]._rev = info[2].rev;
         docs2[1]._rev = info[3].rev;
         db.put(docs2[0], function(err, info) {
@@ -137,6 +133,69 @@ adapters.map(function(adapter) {
     });
   });
 
+  asyncTest("Changes with filter not present in ddoc", function () {
+    var docs = [{
+      _id: "1",
+      integer: 1
+    }, {
+      _id: '_design/foo',
+      integer: 4,
+      filters: {
+        even: 'function (doc) { return doc.integer % 2 === 1; }'
+      }
+    }, ];
+
+    testUtils.initTestDB(this.name, function (err, db) {
+      testUtils.writeDocs(db, docs, function (err, info) {
+        db.changes({
+          filter: 'foo/odd',
+          limit: 2,
+          include_docs: true,
+          complete: function (err, results) {
+            equal(err.status, 404, 'correct error status');
+            equal(err.message, 'missing json key: odd', 'correct error reason');
+            equal(results, null, 'correct `results` object returned');
+            start();
+          }
+        });
+      });
+    });
+  });
+
+  asyncTest("Changes with `filters` key not present in ddoc", function () {
+    var docs = [{
+      _id: "0",
+      integer: 0
+    }, {
+      _id: "1",
+      integer: 1
+    }, {
+      _id: '_design/foo',
+      integer: 4,
+      views: {
+        even: {
+          map: 'function (doc) { if (doc.integer % 2 === 1) { emit(doc._id, null) }; }'
+        }
+      }
+    }, ];
+
+    testUtils.initTestDB(this.name, function (err, db) {
+      testUtils.writeDocs(db, docs, function (err, info) {
+        db.changes({
+          filter: 'foo/even',
+          limit: 2,
+          include_docs: true,
+          complete: function (err, results) {
+            equal(err.status, 404, 'correct error status');
+            equal(err.message, 'missing json key: filters', 'correct error reason');
+            equal(results, null, 'correct `results` object returned');
+            start();
+          }
+        });
+      });
+    });
+  });
+
   asyncTest("Changes limit and filter", function(){
     var docs = [
       {_id: "0", integer: 0},
@@ -152,10 +211,169 @@ adapters.map(function(adapter) {
       }
     ];
 
-    initTestDB(this.name, function(err, db) {
-      writeDocs(db, docs, function(err, info) {
+    testUtils.initTestDB(this.name, function(err, db) {
+      testUtils.writeDocs(db, docs, function(err, info) {
         db.changes({
           filter: 'foo/even',
+          limit: 2,
+          since: 2,
+          include_docs: true,
+          complete: function(err, results) {
+            strictEqual(results.results.length, 2, 'correct # results');
+
+            strictEqual(results.results[0].id, '3', 'correct first id');
+            strictEqual(results.results[0].seq, 4, 'correct first seq');
+            strictEqual(results.results[0].doc.integer, 3, 'correct first integer');
+
+            strictEqual(results.results[1].id, '5', 'correct second id');
+            strictEqual(results.results[1].seq, 6, 'correct second seq');
+            strictEqual(results.results[1].doc.integer, 5, 'correct second integer');
+            start();
+          }
+        });
+      });
+    });
+  });
+
+  asyncTest("Changes with filter from nonexistent ddoc", function () {
+    var docs = [{
+      _id: "0",
+      integer: 0
+    }, {
+      _id: "1",
+      integer: 1
+    }, ];
+
+    testUtils.initTestDB(this.name, function (err, db) {
+      testUtils.writeDocs(db, docs, function (err, info) {
+        db.changes({
+          filter: 'foobar/odd',
+          complete: function (err, results) {
+            equal(err.status, 404, 'correct error status');
+            equal(err.message, 'missing', 'correct error reason');
+            equal(results, null, 'correct `results` object returned');
+            start();
+          }
+        });
+      });
+    });
+  });
+
+  asyncTest("Changes with view not present in ddoc", function () {
+    var docs = [{
+      _id: "0",
+      integer: 0
+    }, {
+      _id: "1",
+      integer: 1
+    }, {
+      _id: '_design/foo',
+      integer: 4,
+      views: {
+        even: {
+          map: 'function (doc) { if (doc.integer % 2 === 1) { emit(doc._id, null) }; }'
+        }
+      }
+    }];
+
+    testUtils.initTestDB(this.name, function (err, db) {
+      testUtils.writeDocs(db, docs, function (err, info) {
+        db.changes({
+          filter: '_view',
+          view: 'foo/odd',
+          complete: function (err, results) {
+            equal(err.status, 404, 'correct error status');
+            equal(err.message, 'missing json key: odd', 'correct error reason');
+            equal(results, null, 'correct `results` object returned');
+            start();
+          }
+        });
+      });
+    });
+  });
+
+  asyncTest("Changes with `views` key not present in ddoc", function () {
+    var docs = [{
+      _id: "1",
+      integer: 1
+    }, {
+      _id: '_design/foo',
+      integer: 4,
+      filters: {
+        even: 'function (doc) { return doc.integer % 2 === 1; }'
+      }
+    }, ];
+
+    testUtils.initTestDB(this.name, function (err, db) {
+      testUtils.writeDocs(db, docs, function (err, info) {
+        db.changes({
+          filter: '_view',
+          view: 'foo/even',
+          complete: function (err, results) {
+            equal(err.status, 404, 'correct error status');
+            equal(err.message, 'missing json key: views', 'correct error reason');
+            equal(results, null, 'correct `results` object returned');
+            start();
+          }
+        });
+      });
+    });
+  });
+
+  asyncTest("Changes with missing param `view` in request", function () {
+    var docs = [{
+      _id: "0",
+      integer: 0
+    }, {
+      _id: "1",
+      integer: 1
+    }, {
+      _id: '_design/foo',
+      integer: 4,
+      views: {
+        even: {
+          map: 'function (doc) { if (doc.integer % 2 === 1) { emit(doc._id, null) }; }'
+        }
+      }
+    }];
+
+    testUtils.initTestDB(this.name, function (err, db) {
+      testUtils.writeDocs(db, docs, function (err, info) {
+        db.changes({
+          filter: '_view',
+          complete: function (err, results) {
+            equal(err.status, 400, 'correct error status');
+            equal(err.message, '`view` filter parameter is not provided.', 'correct error reason');
+            equal(results, null, 'correct `results` object returned');
+            start();
+          }
+        });
+      });
+    });
+  });
+
+  asyncTest("Changes limit and view instead of filter", function(){
+    var docs = [
+      {_id: "0", integer: 0},
+      {_id: "1", integer: 1},
+      {_id: "2", integer: 2},
+      {_id: "3", integer: 3},
+      {_id: "4", integer: 4},
+      {_id: "5", integer: 5},
+
+      {_id: '_design/foo', integer: 4, views: {
+         even: {
+            map: 'function(doc) { if (doc.integer % 2 === 1) { emit(doc._id, null) }; }'
+         }
+       }
+      }
+    ];
+
+    testUtils.initTestDB(this.name, function(err, db) {
+      testUtils.writeDocs(db, docs, function(err, info) {
+        db.changes({
+          filter: '_view',
+          view: 'foo/even',
           limit: 2,
           since: 2,
           include_docs: true,
@@ -189,7 +407,7 @@ adapters.map(function(adapter) {
       }
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.changes({
         complete: function(err, results) {
           strictEqual(results.last_seq, 0, 'correct last_seq');
@@ -199,6 +417,46 @@ adapters.map(function(adapter) {
                 strictEqual(results.last_seq, 5, 'correct last_seq');
                 db.changes({
                   filter: 'foo/even',
+                  complete: function(err, results) {
+                    strictEqual(results.last_seq, 5, 'filter does not change last_seq');
+                    strictEqual(results.results.length, 2, 'correct # of changes');
+                    start();
+                  }
+                });
+              }
+            });
+          });
+        }
+      });
+    });
+  });
+
+  asyncTest("Changes last_seq with view instead of filter", function() {
+    var docs = [
+      {_id: "0", integer: 0},
+      {_id: "1", integer: 1},
+      {_id: "2", integer: 2},
+      {_id: "3", integer: 3},
+
+      {_id: '_design/foo', integer: 4, views: {
+         even: {
+            map: 'function(doc) { if (doc.integer % 2 === 1) { emit(doc._id, null) }; }'
+         }
+       }
+      }
+    ];
+
+    testUtils.initTestDB(this.name, function(err, db) {
+      db.changes({
+        complete: function(err, results) {
+          strictEqual(results.last_seq, 0, 'correct last_seq');
+          db.bulkDocs({docs: docs}, function(err, info) {
+            db.changes({
+              complete: function(err, results) {
+                strictEqual(results.last_seq, 5, 'correct last_seq');
+                db.changes({
+                  filter: '_view',
+                  view: 'foo/even',
                   complete: function(err, results) {
                     strictEqual(results.last_seq, 5, 'filter does not change last_seq');
                     strictEqual(results.results.length, 2, 'correct # of changes');
@@ -232,8 +490,8 @@ adapters.map(function(adapter) {
     ]
     ];
 
-    initTestDB(this.name, function(err, db) {
-      putTree(db, simpleTree, function() {
+    testUtils.initTestDB(this.name, function(err, db) {
+      testUtils.putTree(db, simpleTree, function() {
         db.changes({
           // without specifying all_docs it should return only winning rev
           complete: function(err, res) {
@@ -270,7 +528,7 @@ adapters.map(function(adapter) {
       {_id: "2", integer: 2},
       {_id: "3", integer: 3}
     ];
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs}, function(err, info) {
         db.changes({
           limit: 0,
@@ -286,7 +544,7 @@ adapters.map(function(adapter) {
   // Note for the following test that CouchDB's implementation of /_changes
   // with `descending=true` ignores any `since` parameter.
   asyncTest("Descending changes", function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.post({ _id: "0", test: "ing" }, function (err, res) {
         db.post({ _id: "1", test: "ing" }, function (err, res) {
           db.post({ _id: "2", test: "ing" }, function (err, res) {
@@ -309,7 +567,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Changes doc", function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.post({test:"somestuff"}, function (err, info) {
         db.changes({
           include_docs: true,
@@ -325,7 +583,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Continuous changes", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var count = 0;
       var changes = db.changes({
         onChange: function(change) {
@@ -342,7 +600,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Multiple watchers", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var count = 0;
       function checkCount() {
         equal(count, 2, 'Should have received exactly one change per listener');
@@ -381,7 +639,7 @@ adapters.map(function(adapter) {
         .replace(/[?&]testNumber=[^&]+/, '')
         .replace(/[?&]dbname=[^&]+/, '') +
           '&testFiles=postTest.js&dbname=' + encodeURIComponent(this.name);
-      initTestDB(this.name, function(err, db) {
+      testUtils.initTestDB(this.name, function(err, db) {
         var count = 0;
         var tab;
         var changes = db.changes({
@@ -405,7 +663,7 @@ adapters.map(function(adapter) {
   }
 
   asyncTest("Continuous changes doc", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var changes = db.changes({
         onChange: function(change) {
           ok(change.doc, 'doc included');
@@ -421,7 +679,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Cancel changes", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var count = 0;
       var changes = db.changes({
         onChange: function(change) {
@@ -446,7 +704,7 @@ adapters.map(function(adapter) {
 
   asyncTest("Kill database while listening to continuous changes", function() {
     var name = this.name;
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var count = 0;
       var changes = db.changes({
         onChange: function(change) {
@@ -481,7 +739,7 @@ adapters.map(function(adapter) {
       {_id: "7", integer: 7}
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var count = 0;
       db.bulkDocs({docs: docs1}, function(err, info) {
         var changes = db.changes({
@@ -521,7 +779,7 @@ adapters.map(function(adapter) {
       "abc": true
     };
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var count = 0;
       db.bulkDocs({docs: docs1}, function(err, info) {
         var changes = db.changes({
@@ -555,7 +813,7 @@ adapters.map(function(adapter) {
       {_id: "3", integer: 3}
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs1}, function(err, info) {
         db.changes({
           filter: function (doc) {
@@ -584,7 +842,7 @@ adapters.map(function(adapter) {
       {_id: "3", integer: 12}
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs1}, function(err, info) {
         docs2[0]._rev = info[2].rev;
         docs2[1]._rev = info[3].rev;
@@ -627,14 +885,14 @@ adapters.map(function(adapter) {
     var localname = this.name;
     var remotename = this.name + "-remote";
 
-    initDBPair(localname, remotename, function(localdb, remotedb) {
+    testUtils.initDBPair(localname, remotename, function(localdb, remotedb) {
       localdb.bulkDocs({docs: docs1}, function(err, info) {
         docs2[0]._rev = info[2].rev;
         var rev1 = docs2[1]._rev = info[3].rev;
         localdb.put(docs2[0], function(err, info) {
           localdb.put(docs2[1], function(err, info) {
             var rev2 = info.rev;
-            Pouch.replicate(localdb, remotedb, function(err, done) {
+            PouchDB.replicate(localdb, remotedb, function(err, done) {
               // update remote once, local twice, then replicate from
               // remote to local so the remote losing conflict is later in the tree
               localdb.put({_id: "3", _rev: rev2, integer: 20}, function(err, resp) {
@@ -644,7 +902,7 @@ adapters.map(function(adapter) {
                   var rev4Doc = {_id: "3", _rev: rev2, integer: 100};
                   remotedb.put(rev4Doc, function(err, resp) {
                     var remoterev = resp.rev;
-                    Pouch.replicate(remotedb, localdb, function(err, done) {
+                    PouchDB.replicate(remotedb, localdb, function(err, done) {
                       localdb.changes({
                         include_docs: true,
                         style: 'all_docs',
@@ -689,7 +947,7 @@ adapters.map(function(adapter) {
       {_id: "3", integer: 3}
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs1}, function(err, info) {
         var rev = info[3].rev;
         db.remove({_id: "3", _rev: rev}, function(err, info) {
@@ -716,7 +974,7 @@ adapters.map(function(adapter) {
     for (var i = 0; i < num; i++) {
       docs.push({_id: 'doc_' + i, foo: 'bar_' + i});
     }
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs}, function(err, info) {
         db.changes({
           complete: function(err, res) {
@@ -730,7 +988,7 @@ adapters.map(function(adapter) {
   
   asyncTest('Calling db.changes({since: \'latest\'', function () {
     expect(5);
-    initTestDB(this.name, function (err, db) {
+    testUtils.initTestDB(this.name, function (err, db) {
       db.bulkDocs({docs: [
         { foo: 'bar' }
       ]}, function (err, data) {
@@ -761,5 +1019,24 @@ asyncTest("Changes reports errors", function (){
       ok(err, 'got error');
       start();
     }
+  });
+});
+
+asyncTest("Closing db dosent cause a crash if changes cancelled", function (){
+  testUtils.initTestDB(this.name, function (err, db) {
+    db.bulkDocs({docs: [
+      { foo: 'bar' }
+    ]}, function (err, data) {
+      ok(!err, 'bulked ok');
+      var changes = db.changes({
+        continuous: true,
+        onChange: function(){}
+      });
+      changes.cancel();
+      db.close(function(error){
+        ok(!error, 'closed ok');
+        start();
+      });
+    });
   });
 });

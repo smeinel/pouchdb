@@ -1,37 +1,38 @@
-/*globals initTestDB: false, emit: true, generateAdapterUrl: false */
-/*globals PERSIST_DATABASES: false, initDBPair: false, utils: true */
-/*globals ajax: true, LevelPouch: true, makeDocs: false */
-/*globals cleanupTestDatabases: false */
-
 "use strict";
 
-// Porting tests from Apache CouchDB bulk docs tests
-// https://github.com/apache/couchdb/blob/master/share/www/script/test/bulk_docs.js
-
 var adapters = ['local-1', 'http-1'];
-var qunit = module;
-var LevelPouch;
-var utils;
 
 if (typeof module !== undefined && module.exports) {
-  Pouch = require('../src/pouch.js');
-  LevelPouch = require('../src/adapters/pouch.leveldb.js');
-  utils = require('./test.utils.js');
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
+}
 
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
+function makeDocs(start, end, templateDoc) {
+  var templateDocSrc = templateDoc ? JSON.stringify(templateDoc) : "{}";
+  if (end === undefined) {
+    end = start;
+    start = 0;
   }
-  qunit = QUnit.module;
+  var docs = [];
+  for (var i = start; i < end; i++) {
+    /*jshint evil:true */
+    var newDoc = eval("(" + templateDocSrc + ")");
+    newDoc._id = (i).toString();
+    newDoc.integer = i;
+    newDoc.string = (i).toString();
+    docs.push(newDoc);
+  }
+  return docs;
 }
 
 adapters.map(function(adapter) {
 
-  qunit('bulk_docs: ' + adapter, {
-    setup : function () {
-      this.name = generateAdapterUrl(adapter);
-      Pouch.enableAllDbs = true;
+  QUnit.module('bulk_docs: ' + adapter, {
+    setup: function () {
+      this.name = testUtils.generateAdapterUrl(adapter);
+      PouchDB.enableAllDbs = true;
     },
-    teardown: cleanupTestDatabases
+    teardown: testUtils.cleanupTestDatabases
   });
 
   var authors = [
@@ -42,7 +43,7 @@ adapters.map(function(adapter) {
   ];
 
   asyncTest('Testing bulk docs', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var docs = makeDocs(5);
       db.bulkDocs({docs: docs}, function(err, results) {
         ok(results.length === 5, 'results length matches');
@@ -63,7 +64,7 @@ adapters.map(function(adapter) {
           }
           db.put(docs[0], function(err, doc) {
             db.bulkDocs({docs: docs}, function(err, results) {
-              ok(results[0].error === 'conflict', 'First doc should be in conflict');
+              ok(results[0].name === 'conflict', 'First doc should be in conflict');
               ok(typeof results[0].rev === "undefined", 'no rev in conflict');
               for (i = 1; i < 5; i++) {
                 ok(results[i].id === i.toString());
@@ -78,7 +79,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('No id in bulk docs', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var newdoc = {"_id": "foobar", "body": "baz"};
       db.put(newdoc, function(err, doc) {
         ok(doc.ok);
@@ -87,7 +88,7 @@ adapters.map(function(adapter) {
           {"_id": newdoc._id, "_rev": newdoc._rev, "_deleted": true}
         ];
         db.bulkDocs({docs: docs}, function(err, results) {
-          ok(results[0].error === 'conflict' || results[1].error === 'conflict');
+          ok(results[0].name === 'conflict' || results[1].name === 'conflict');
           start();
         });
       });
@@ -95,7 +96,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('No _rev and new_edits=false', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var docs = [
         {_id: "foo", integer: 1}
       ];
@@ -110,9 +111,9 @@ adapters.map(function(adapter) {
     var docs = [
       {'_id': '_invalid', foo: 'bar'}
     ];
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs}, function(err, info) {
-        equal(err.error, 'bad_request', 'correct error returned');
+        equal(err.name, 'bad_request', 'correct error returned');
         ok(!info, 'info is empty');
         start();
       });
@@ -124,10 +125,10 @@ adapters.map(function(adapter) {
       {'_id': '_invalid', foo: 'bar'},
       {'_id': 123, foo: 'bar'}
     ];
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: docs}, function(err, info) {
-        equal(err.error, 'bad_request', 'correct error returned');
-        equal(err.reason, Pouch.Errors.RESERVED_ID.reason, 'correct error message returned');
+        equal(err.name, 'bad_request', 'correct error returned');
+        equal(err.message, PouchDB.Errors.RESERVED_ID.message, 'correct error message returned');
         ok(!info, 'info is empty');
         start();
       });
@@ -135,18 +136,18 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('No docs', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({"doc": [{"foo":"bar"}]}, function(err, result) {
         ok(err.status === 400);
-        ok(err.error === 'bad_request');
-        ok(err.reason === "Missing JSON list of 'docs'");
+        ok(err.name === 'bad_request');
+        ok(err.message === "Missing JSON list of 'docs'");
         start();
       });
     });
   });
 
   asyncTest('Jira 911', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var docs = [
         {"_id":"0", "a" : 0},
         {"_id":"1", "a" : 1},
@@ -155,8 +156,8 @@ adapters.map(function(adapter) {
       ];
       db.bulkDocs({docs: docs}, function(err, results) {
         ok(results[1].id === "1", 'check ordering');
-        ok(results[1].error === undefined, 'first id succeded');
-        ok(results[2].error === "conflict", 'second conflicted');
+        ok(results[1].name === undefined, 'first id succeded');
+        ok(results[2].name === "conflict", 'second conflicted');
         ok(results.length === 4, 'got right amount of results');
         start();
       });
@@ -164,7 +165,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('Test multiple bulkdocs', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: authors}, function (err, res) {
         db.bulkDocs({docs: authors}, function (err, res) {
           db.allDocs(function(err, result) {
@@ -177,7 +178,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('Bulk with new_edits=false', function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var docs = [
         {"_id":"foo","_rev":"2-x","_revisions":
           {"start":2,"ids":["x","a"]}
@@ -198,8 +199,9 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('656 regression in handling deleted docs', function() {
-    initTestDB(this.name, function(err, db) {
-      db.bulkDocs({docs: [{_id: "foo", _rev: "1-a", _deleted: true}]}, {new_edits: false}, function(err, res){
+    testUtils.initTestDB(this.name, function(err, db) {
+      db.bulkDocs({docs: [{_id: "foo", _rev: "1-a", _deleted: true}]},
+                  {new_edits: false}, function(err, res){
         db.get("foo", function(err, res){
           ok(err, "deleted");
           start();

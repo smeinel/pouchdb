@@ -23,15 +23,14 @@ An express submodule with a CouchDB style REST interface to PouchDB.
 
 Multidimensional and Spatial Queries with PouchDB.
 
-[Source](https://github.com/daleharvey/pouchdb/blob/master/src/plugins/pouchdb.spatial.js)
-[Build](http://download.pouchdb.com/pouchdb.spatial-nightly.js)
+[repo](https://github.com/pouchdb/geopouch)
 
 ### GQL
 
 Google Query Language(GQL) queries with PouchDB.
 
 [Documentation](http://pouchdb.com/gql.html)
-[Build](http://download.pouchdb.com/pouchdb.gql-nightly.js)
+[repo](https://github.com/pouchdb/GQL)
 
 ### Backbone PouchDB
 

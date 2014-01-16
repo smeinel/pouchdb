@@ -1,39 +1,25 @@
-/*globals initTestDB: false, emit: true, generateAdapterUrl: false */
-/*globals PERSIST_DATABASES: false, initDBPair: false, utils: true */
-/*globals cleanupTestDatabases: false */
-
 "use strict";
 
 var adapters = ['local-1', 'http-1'];
-var qunit = module;
-var LevelPouch;
 
-// if we are running under node.js, set things up
-// a little differently, and only test the leveldb adapter
 if (typeof module !== undefined && module.exports) {
-  var Pouch = require('../src/pouch.js');
-  var LevelPouch = require('../src/adapters/pouch.leveldb.js');
-  var utils = require('./test.utils.js');
-
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
-  }
-  qunit = QUnit.module;
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
 }
 
 adapters.map(function(adapter) {
 
-  qunit('views: ' + adapter, {
+  QUnit.module('views: ' + adapter, {
     setup : function () {
-      this.name = generateAdapterUrl(adapter);
-      this.remote = generateAdapterUrl('local-2');
-      Pouch.enableAllDbs = true;
+      this.name = testUtils.generateAdapterUrl(adapter);
+      this.remote = testUtils.generateAdapterUrl('local-2');
+      PouchDB.enableAllDbs = true;
     },
-    teardown: cleanupTestDatabases
+    teardown: testUtils.cleanupTestDatabases
   });
 
   asyncTest("Test basic view", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: [{foo: 'bar'}, { _id: 'volatile', foo: 'baz' }]}, {}, function() {
         var queryFun = {
           map: function(doc) { emit(doc.foo, doc); }
@@ -60,7 +46,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test passing just a function", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: [{foo: 'bar'}, { _id: 'volatile', foo: 'baz' }]}, {}, function() {
         var queryFun = function(doc) { emit(doc.foo, doc); };
         db.get('volatile', function(_, doc) {
@@ -84,7 +70,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test opts.startkey/opts.endkey", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: [{key: 'key1'},{key: 'key2'},{key: 'key3'},{key: 'key4'},{key: 'key5'}]}, {}, function() {
         var queryFun = {
           map: function(doc) { emit(doc.key, doc); }
@@ -107,7 +93,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test opts.key", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: [{key: 'key1'},{key: 'key2'},{key: 'key3'},{key: 'key3'}]}, {}, function() {
         var queryFun = {
           map: function(doc) { emit(doc.key, doc); }
@@ -170,7 +156,7 @@ adapters.map(function(adapter) {
     // that doesn't preserve order)
     values.push({b:2, c:2});
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var docs = values.map(function(x, i) {
         return {_id: (i).toString(), foo: x};
       });
@@ -195,7 +181,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test joins", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: [{_id: 'mydoc', foo: 'bar'}, { doc_id: 'mydoc' }]}, {}, function() {
         var queryFun = {
           map: function(doc) {
@@ -214,7 +200,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("No reduce function", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.post({foo: 'bar'}, function(err, res) {
         var queryFun = {
           map: function(doc) {
@@ -230,7 +216,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Built in _sum reduce function", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { val: 'bar' },
@@ -255,7 +241,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Built in _count reduce function", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { val: 'bar' },
@@ -280,7 +266,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Built in _stats reduce function", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { val: 'bar' },
@@ -308,7 +294,7 @@ adapters.map(function(adapter) {
   });
 
  asyncTest("No reduce function, passing just a  function", function() {
-    initTestDB(this.name, function(err, db) {
+   testUtils.initTestDB(this.name, function(err, db) {
       db.post({foo: 'bar'}, function(err, res) {
         var queryFun = function(doc) { emit('key', 'val'); };
         db.query(queryFun, function(err, res) {
@@ -325,7 +311,7 @@ adapters.map(function(adapter) {
     var doc1 = {_id: '1', foo: 'bar'};
     var doc2 = {_id: '1', foo: 'baz'};
     var queryFun = function(doc) { emit(doc._id, !!doc._conflicts); };
-    initDBPair(this.name, this.remote, function(db, remote) {
+    testUtils.initDBPair(this.name, this.remote, function(db, remote) {
       db.post(doc1, function(err, res) {
         remote.post(doc2, function(err, res) {
           db.replicate.from(remote, function(err, res) {
@@ -342,8 +328,43 @@ adapters.map(function(adapter) {
     });
   });
 
+  asyncTest('Map only documents with _conflicts (#1000)', function() {
+    var self = this;
+    var docs1 = [
+     {_id: '1', foo: 'bar'},
+     {_id: '2', name: 'two'},
+    ];
+    var doc2 = {_id: '1', foo: 'baz'};
+    var queryFun = function(doc) {
+      if (doc._conflicts) {
+        emit(doc._id, doc._conflicts);
+      }
+    };
+    testUtils.initDBPair(this.name, this.remote, function(db, remote) {
+      db.bulkDocs({docs: docs1}, function(err, res) {
+        var revId1 = res[0].rev;
+        remote.post(doc2, function(err, res) {
+          var revId2 = res.rev;
+          db.replicate.from(remote, function(err, res) {
+            db.get(docs1[0]._id, {conflicts: true}, function(err, res) {
+              var winner = res._rev;
+              var looser = winner === revId1 ? revId2 : revId1;
+              ok(res._conflicts,'Conflict exists in db');
+              db.query(queryFun, function(err, res) {
+                strictEqual(res.rows.length, 1, 'One doc with conflicts');
+                strictEqual(res.rows[0].key, '1', 'Correct document with conflicts.');
+                deepEqual(res.rows[0].value, [looser], 'Correct conflicts included.');
+                start();
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+
   asyncTest("Test view querying with limit option", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { foo: 'bar' },
@@ -367,7 +388,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Query non existing view returns error", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var doc = {
         _id: '_design/barbar',
         views: {
@@ -378,8 +399,12 @@ adapters.map(function(adapter) {
       };
       db.post(doc, function (err, info) {
         db.query('barbar/dontExist',{key: 'bar'}, function(err, res) {
-          equal(err.error, 'not_found');
-          equal(err.reason, 'missing_named_view');
+          if(!err.name){
+            err.name = err.error;
+            err.message = err.reason;
+          }
+          equal(err.name, 'not_found');
+          equal(err.message, 'missing_named_view');
           start();
         });
       });
@@ -387,7 +412,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Special document member _doc_id_rev should never leak outside", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { foo: 'bar' }
@@ -407,7 +432,7 @@ adapters.map(function(adapter) {
   });
   
   asyncTest('If reduce function returns 0, resulting value should not be null', function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { foo: 'bar' }
@@ -429,7 +454,7 @@ adapters.map(function(adapter) {
   });
   
   asyncTest('Testing skip with a view', function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { foo: 'bar' },
@@ -449,7 +474,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('Testing skip with allDocs', function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({
         docs: [
           { foo: 'bar' },
@@ -460,6 +485,39 @@ adapters.map(function(adapter) {
         db.allDocs({skip: 1}, function (err, data) {
           ok(!err, 'Error:' + JSON.stringify(err));
           equal(data.rows.length, 2);
+          start();
+        });
+      });
+    });
+  });
+
+  asyncTest('Map documents on 0/null/undefined/empty string', function() {
+    testUtils.initTestDB(this.name, function(err, db) {
+      var docs = [
+        {_id : 'doc0', num : 0},
+        {_id : 'doc1', num : 1},
+        {_id : 'doc2' /* num is undefined */},
+        {_id : 'doc3', num : null},
+        {_id : 'doc4', num : ''}
+      ];
+      db.bulkDocs({docs: docs}, function(err){
+        var mapFunction =function(doc){emit(doc.num, null);};
+
+        db.query(mapFunction, {key : 0, include_docs : true}, function(err, data){
+          equal(data.rows.length, 1);
+          equal(data.rows[0].doc._id, 'doc0');
+        });
+        db.query(mapFunction, {key : null, include_docs : true}, function(err, data){
+          equal(data.rows.length, 2);
+          equal(data.rows[0].doc._id, 'doc2');
+          equal(data.rows[1].doc._id, 'doc3');
+        });
+        db.query(mapFunction, {key : '', include_docs : true}, function(err, data){
+          equal(data.rows.length, 1);
+          equal(data.rows[0].doc._id, 'doc4');
+        });
+        db.query(mapFunction, {key : undefined, include_docs : true}, function(err, data){
+          equal(data.rows.length, 5); // everything
           start();
         });
       });

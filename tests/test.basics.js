@@ -1,39 +1,24 @@
-/*globals initTestDB, openTestDB, emit, generateAdapterUrl, cleanupTestDatabases */
-/*globals PERSIST_DATABASES, initDBPair, ajax, strictEqual */
-/*globals utils: true, LevelPouch: true */
-
 "use strict";
 
 var adapters = ['http-1', 'local-1'];
-var qunit = module;
-var LevelPouch;
-var PouchDB;
-var utils;
 
 if (typeof module !== undefined && module.exports) {
-  Pouch = require('../src/pouch.js');
-  PouchDB = require('../src/pouch.js');
-  LevelPouch = require('../src/adapters/pouch.leveldb.js');
-  utils = require('./test.utils.js');
-
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
-  }
-  qunit = QUnit.module;
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
 }
 
 adapters.map(function(adapter) {
 
-  qunit("basics: " + adapter, {
+  QUnit.module("basics: " + adapter, {
     setup: function() {
-      this.name = generateAdapterUrl(adapter);
-      Pouch.enableAllDbs = false;
+      this.name = testUtils.generateAdapterUrl(adapter);
+      PouchDB.enableAllDbs = false;
     },
-    teardown: cleanupTestDatabases
+    teardown: testUtils.cleanupTestDatabases
   });
 
   asyncTest("Create a pouch", 1, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(!err, 'created a pouch');
       start();
     });
@@ -41,8 +26,8 @@ adapters.map(function(adapter) {
 
   asyncTest("Remove a pouch", 1, function() {
     var name = this.name;
-    initTestDB(name, function(err, db) {
-      Pouch.destroy(name, function(err, db) {
+    testUtils.initTestDB(name, function(err, db) {
+      PouchDB.destroy(name, function(err, db) {
         ok(!err);
         start();
       });
@@ -50,7 +35,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Add a doc", 2, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(!err, 'opened the pouch');
       db.post({test:"somestuff"}, function (err, info) {
         ok(!err, 'saved a doc with post');
@@ -58,9 +43,19 @@ adapters.map(function(adapter) {
       });
     });
   });
+  asyncTest("Add a doc with a promise", 1, function() {
+    testUtils.initTestDB(this.name, function(err, db) {
+      ok(!err, 'opened the pouch');
+      db.post({test:"somestuff"}).then(function (info) {
+        start();
+      },function(err){
+        ok(!err, 'saved a doc with post');
+      });
+    });
+  });
 
   asyncTest("Modify a doc", 3, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(!err, 'opened the pouch');
       db.post({test: "somestuff"}, function (err, info) {
         ok(!err, 'saved a doc with post');
@@ -72,28 +67,52 @@ adapters.map(function(adapter) {
     });
   });
 
+  asyncTest("Modify a doc with a promise", 2, function() {
+    testUtils.initTestDB(this.name, function(err, db) {
+      ok(!err, 'opened the pouch');
+      db.post({test: "promisestuff"}).then(function(info){
+        return db.put({_id: info.id, _rev: info.rev, another: 'test'}).then(function(info2){
+          ok(info2.rev !== info._rev, 'updated a doc with put');
+        });
+      }).then(function(){
+        start();
+      },function(err){
+        ok(!err);
+      });
+    });
+  });
   asyncTest("Read db id", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(typeof(db.id()) === 'string' && db.id() !== '', "got id");
       start();
     });
   });
 
   asyncTest("Close db", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.close(function(error){
         ok(!err, 'close called back with an error');
         start();
       });
     });
   });
+  asyncTest("Close db with a promise", function() {
+    testUtils.initTestDB(this.name, function(err, db) {
+      db.close().then(function(){
+        ok(true)
+        start();
+      },function(error){
+        ok(!err, 'close called back with an error');
+      });
+    });
+  });
 
   asyncTest("Read db id after closing", function() {
     var dbName = this.name;
-    initTestDB(dbName, function(err, db) {
+    testUtils.initTestDB(dbName, function(err, db) {
       db.close(function(error){
         ok(!err, 'close called back with an error');
-        openTestDB(dbName, function(err, db){
+        testUtils.openTestDB(dbName, function(err, db){
           ok(typeof(db.id()) === 'string' && db.id() !== '', "got id");
           start();
         });
@@ -102,7 +121,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Modify a doc with incorrect rev", 3, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(!err, 'opened the pouch');
       db.post({test: "somestuff"}, function (err, info) {
         ok(!err, 'saved a doc with post');
@@ -115,18 +134,8 @@ adapters.map(function(adapter) {
     });
   });
 
-  // Documents with underscores in ids are valid in cloudant
-  // asyncTest("Add a doc with leading underscore in id", function() {
-  //   initTestDB(this.name, function(err, db) {
-  //     db.post({_id: '_testing', value: 42}, function(err, info) {
-  //       ok(err);
-  //       start();
-  //     });
-  //   });
-  // });
-
   asyncTest("Remove doc", 1, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.post({test:"somestuff"}, function(err, info) {
         db.remove({test:"somestuff", _id:info.id, _rev:info.rev}, function(doc) {
           db.get(info.id, function(err) {
@@ -138,8 +147,24 @@ adapters.map(function(adapter) {
     });
   });
 
+    asyncTest("Remove doc with a promise", 1, function() {
+    testUtils.initTestDB(this.name, function(err, db) {
+      db.post({test:"someotherstuff"}).then(function(info) {
+        return db.remove({test:"someotherstuff", _id:info.id, _rev:info.rev})
+          .then(function() {
+            return db.get(info.id).then(function(doc){
+              return doc;
+            },function(err) {
+              ok(err.error);
+              start();
+            });
+          });
+      });
+    });
+  });
+
   asyncTest("Doc removal leaves only stub", 1, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({_id: "foo", value: "test"}, function(err, res) {
         db.get("foo", function(err, doc) {
           db.remove(doc, function(err, res) {
@@ -154,7 +179,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Remove doc twice with specified id", 4, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({_id:"specifiedId", test:"somestuff"}, function(err, info) {
         db.get("specifiedId", function(err, doc) {
           ok(doc.test, "Put and got doc");
@@ -176,7 +201,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Remove doc, no callback", 2, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var changesCount = 2;
       var changes = db.changes({
         continuous: true,
@@ -197,7 +222,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Delete document without id", 1, function () {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.remove({test:'ing'}, function(err) {
         ok(err, 'failed to delete');
         start();
@@ -206,7 +231,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Bulk docs", 3, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(!err, 'opened the pouch');
       db.bulkDocs({docs: [{test:"somestuff"}, {test:"another"}]}, function(err, infos) {
         ok(!infos[0].error);
@@ -215,45 +240,19 @@ adapters.map(function(adapter) {
       });
     });
   });
-
-  /*
-  asyncTest("Sync a doc", 6, function() {
-    var couch = generateAdapterUrl('http-2');
-    initTestDB(this.name, function(err, db) {
+  asyncTest("Bulk docs with a promie", 3, function() {
+    testUtils.initTestDB(this.name, function(err, db) {
       ok(!err, 'opened the pouch');
-      initTestDB(couch, function(err, db2) {
-        ok(!err, 'opened the couch');
-        db.put({_id:"adoc", test:"somestuff"}, function (err, info) {
-          ok(!err, 'saved a doc with post');
-          db.replicate.to(couch, function(err, info) {
-            ok(!err, 'replicated pouch to couch');
-            db.replicate.from(couch, function(err, info) {
-              ok(!err, 'replicated couch back to pouch');
-              db.get("adoc", {conflicts:true}, function(err, doc) {
-                ok(!doc._conflicts, 'doc has no conflicts');
-                start();
-              });
-            });
-          });
-        });
-      })
+      db.bulkDocs({docs: [{test:"somestuff"}, {test:"another"}]}).then(function(infos) {
+        ok(!infos[0].error);
+        ok(!infos[1].error);
+        start();
+      });
     });
   });
-  */
-
-  // From here we are copying over tests from CouchDB
-  // https://github.com/apache/couchdb/blob/master/share/www/script/test/basics.js
-  /*
-  asyncTest("Check database with slashes", 1, function() {
-    initTestDB('idb://test_suite_db%2Fwith_slashes', function(err, db) {
-      ok(!err, 'opened');
-      start();
-    });
-  });
-  */
 
   asyncTest("Basic checks", 8, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.info(function(err, info) {
         var updateSeq = info.update_seq;
         var doc = {_id: '0', a: 1, b:1};
@@ -286,10 +285,10 @@ adapters.map(function(adapter) {
       {"_bing": {"wha?": "soda can"}}
     ];
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: bad_docs}, function(err, res) {
         strictEqual(err.status, 500);
-        strictEqual(err.error, 'doc_validation');
+        strictEqual(err.name, 'doc_validation');
         start();
       });
     });
@@ -298,11 +297,12 @@ adapters.map(function(adapter) {
 
   asyncTest("Testing issue #48", 1, function() {
 
-    var docs = [{"id":"0"}, {"id":"1"}, {"id":"2"}, {"id":"3"}, {"id":"4"}, {"id":"5"}];
+    var docs = [{"id":"0"}, {"id":"1"}, {"id":"2"},
+                {"id":"3"}, {"id":"4"}, {"id":"5"}];
     var x = 0;
     var timer;
 
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var save = function() {
         db.bulkDocs({docs: docs}, function(err, res) {
           if (++x === 10) {
@@ -317,7 +317,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Testing valid id", 1, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.post({'_id': 123, test: "somestuff"}, function (err, info) {
         ok(err, 'id must be a string');
         start();
@@ -326,7 +326,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Put doc without _id should fail", 1, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({test:"somestuff"}, function(err, info) {
         ok(err, '_id is required');
         start();
@@ -336,7 +336,7 @@ adapters.map(function(adapter) {
 
   asyncTest('update_seq persists', 2, function() {
     var name = this.name;
-    initTestDB(name, function(err, db) {
+    testUtils.initTestDB(name, function(err, db) {
       db.post({test:"somestuff"}, function (err, info) {
         new PouchDB(name, function(err, db) {
           db.info(function(err, info) {
@@ -358,7 +358,7 @@ adapters.map(function(adapter) {
         });
       });
     }
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       writeAndDelete(db, function() {
         writeAndDelete(db, function() {
           db.put(doc, function() {
@@ -373,7 +373,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('Error when document is not an object', 5, function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var doc1 = [{_id: 'foo'}, {_id: 'bar'}];
       var doc2 = "this is not an object";
 
@@ -408,9 +408,48 @@ adapters.map(function(adapter) {
     });
   });
 
-  test('Error works', 1, function() {
-    deepEqual(Pouch.error(Pouch.Errors.BAD_REQUEST, "love needs no reason"),
-      {status: 400, error: "bad_request", reason: "love needs no reason"},
-      "should be the same");
+  test('Error works', 3, function() {
+    var newError = PouchDB.Errors.error(PouchDB.Errors.BAD_REQUEST, "love needs no message");
+    ok(newError.status === 400);
+    ok(newError.name === 'bad_request');
+    ok(newError.message === "love needs no message");
+  });
+
+
+  asyncTest('Fail to fetch a doc after db was deleted', 2, function() {
+    var name = this.name;
+    testUtils.initTestDB(name, function(err, db) {
+      var doc = {_id: 'foodoc'};
+      var doc2 = {_id: 'foodoc2'};
+      var db2 = new PouchDB({name: name});
+      db.put(doc, function() {
+        db2.put(doc2, function() {
+          db.allDocs(function(err, docs) {
+            equal(docs.total_rows, 2, 'Wrote 2 documents');
+            PouchDB.destroy({name: name}, function() {
+              db2 = new PouchDB(name);
+              db2.get(doc._id, function(err, doc) {
+                equal(err.status, 404, 'doc is missing');
+                start();
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+
+  asyncTest("Can't add docs with empty ids", 6, function() {
+    var docs = [{}, {_id : null}, {_id : undefined}, {_id : ''},
+                {_id : {}}, {_id : '_underscored_id'}];
+    testUtils.initTestDB(this.name, function(err, db) {
+      docs.forEach(function(doc) {
+        db.put(doc, function (err, info) {
+          ok(err, "didn't get an error for doc: " + JSON.stringify(doc) +
+             '; response was ' + JSON.stringify(info));
+          start();
+        });
+      });
+    });
   });
 });

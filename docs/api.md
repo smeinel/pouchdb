@@ -53,23 +53,30 @@ PouchDB.destroy('dbname', function(err, info) { });
 db.put(doc, [options], [callback])
 {% endhighlight %}
 
-Create a new document or update an existing document. If the document already exists
-you must specify its revision `_rev`, otherwise a conflict will occur.
+Create a new document or update an existing document. If the document already exists you must specify its revision `_rev`, otherwise a conflict will occur.
 
 There are some restrictions on valid property names of the documents, these are explained [here](http://wiki.apache.org/couchdb/HTTP_Document_API#Special_Fields).
 
 #### Example Usage:
+
+## Create a new doc with id.
 {% highlight js %}
 db.put({
   _id: 'mydoc',
   title: 'Heroes'
 }, function(err, response) { });
+{% endhighlight %}
 
-db.put({
-  _id: 'mydoc',
-  _rev: '1-A6157A5EA545C99B00FF904EEF05FD9F',
-  title: 'Lets Dance',
-}, function(err, response) { })
+## Update an existing doc
+{% highlight js %}
+db.get('myOtherDoc', function(err, resp) {
+  db.put({
+    _id: 'myOtherDoc',
+    _rev: resp._rev,
+    title: 'Lets Dance',
+  }, function(err, response) { });
+});
+
 {% endhighlight %}
 
 #### Example Response:
@@ -228,7 +235,7 @@ db.changes(options)
 {% endhighlight %}
 
 A list of changes made to documents in the database, in the order they were made.
-If `options.continuous` is set it returns object with one method `cancel` which you call if you don't want to listen to new changes anymore. `opttions.onChange` will be be called for each change that is encountered.
+If `options.continuous` is set it returns object with one method `cancel` which you call if you don't want to listen to new changes anymore. `options.onChange` will be be called for each change that is encountered.
 
 * `options.include_docs`: Include the associated document with each change
 * `options.conflicts`: Include conflicts
@@ -347,7 +354,7 @@ db.replicate.from(remoteDB, [options]);
   'end_time': "Sun Sep 23 2012 08:14:45 GMT-0500 (CDT)"
 }
 {% endhighlight %}
-Note that the response for server replications (via `options.server`) is slightly different. See the (CouchDB Wiki)(http://wiki.apache.org/couchdb/Replication).
+Note that the response for server replications (via `options.server`) is slightly different. See the [CouchDB Wiki](http://wiki.apache.org/couchdb/Replication).
 
 ## Save an attachment<a id="save_attachment"></a>
 
@@ -454,6 +461,8 @@ Retrieve a view, this allows you to perform more complex queries on PouchDB, the
 
 * `fun`: Name of a view function or function
 * `options.reduce`: Reduce function
+* `options.key`: Only return rows matching key
+* `options.startkey` & `options.endkey`: Get documents with keys in a certain range
 
 #### Example Usage:
 {% highlight js %}

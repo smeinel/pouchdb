@@ -1,34 +1,20 @@
-/*globals initTestDB: false, emit: true, generateAdapterUrl: false */
-/*globals PERSIST_DATABASES: false, initDBPair: false, utils: true */
-/*globals ajax: true, LevelPouch: true, makeDocs: false */
-
 "use strict";
 
-var remote = {
-  host: 'localhost:2020'
-};
+var remote = {host: 'localhost:2020'};
 var local = 'test_suite_db';
-var qunit = module;
 
 if (typeof module !== undefined && module.exports) {
-  Pouch = require('../src/pouch.js');
-  LevelPouch = require('../src/adapters/pouch.leveldb.js');
-  utils = require('./test.utils.js');
-  ajax = Pouch.utils.ajax;
-
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
-  }
-  qunit = QUnit.module;
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
 }
 
-qunit('auth_replication', {
+QUnit.module('auth_replication', {
   setup: function () {
     this.name = local;
     this.remote = 'http://' + remote.host + '/test_suite_db/';
   },
   teardown: function() {
-    if (!PERSIST_DATABASES) {
+    if (!testUtils.PERSIST_DATABASES) {
       Pouch.destroy(this.name);
       Pouch.destroy(this.remote);
     }
@@ -36,7 +22,7 @@ qunit('auth_replication', {
 });
 
 function login(username, password, callback) {
-  ajax({
+  Pouch.ajax({
     type: 'POST',
     url: 'http://' + remote.host + '/_session',
     data: {name: username, password: password},
@@ -53,7 +39,7 @@ function login(username, password, callback) {
 }
 
 function logout(callback) {
-  ajax({
+  Pouch.ajax({
     type: 'DELETE',
     url: 'http://' + remote.host + '/_session',
     success: function () {
@@ -75,7 +61,7 @@ function createAdminUser(callback) {
     roles: []
   };
 
-  ajax({
+  Pouch.ajax({
     url: 'http://' + remote.host + '/_config/admins/adminuser',
     type: 'PUT',
     data: JSON.stringify(adminuser.password),
@@ -86,7 +72,7 @@ function createAdminUser(callback) {
           if (err) {
             return callback(err);
           }
-          ajax({
+          Pouch.ajax({
             url: 'http://' + remote.host + '/_users/' +
               'org.couchdb.user%3Aadminuser',
             type: 'PUT',
@@ -115,7 +101,7 @@ function createAdminUser(callback) {
 }
 
 function deleteAdminUser(adminuser, callback) {
-  ajax({
+  Pouch.ajax({
     type: 'DELETE',
     beforeSend: function (xhr) {
       var token = btoa('adminuser:password');
@@ -126,12 +112,12 @@ function deleteAdminUser(adminuser, callback) {
     success: function () {
       var adminUrl = 'http://' + remote.host + '/_users/' +
         'org.couchdb.user%3Aadminuser';
-      ajax({
+      Pouch.ajax({
         type: 'GET',
         url: adminUrl,
         dataType: 'json',
         success: function(doc) {
-          ajax({
+          Pouch.ajax({
             type: 'DELETE',
             url: 'http://' + remote.host + '/_users/' +
               'org.couchdb.user%3Aadminuser?rev=' + doc._rev,

@@ -1,9 +1,3 @@
-/*globals initTestDB, emit: true, generateAdapterUrl, PouchDB */
-/*globals PERSIST_DATABASES, initDBPair, utils: true, strictEqual */
-/*globals ajax: true, LevelPouch: true, makeDocs: false */
-/*globals readBlob: false, makeBlob: false, base64Blob: false */
-/*globals cleanupTestDatabases: false */
-
 "use strict";
 
 var adapters = ['local-1', 'http-1'];
@@ -11,32 +5,19 @@ var repl_adapters = [['local-1', 'http-1'],
                      ['http-1', 'http-2'],
                      ['http-1', 'local-1'],
                      ['local-1', 'local-2']];
-var qunit = module;
-var LevelPouch;
-var PouchUtils;
-var utils;
 
-// if we are running under node.js, set things up
-// a little differently, and only test the leveldb adapter
 if (typeof module !== undefined && module.exports) {
-  Pouch = require('../src/pouch.js');
-  LevelPouch = require('../src/adapters/pouch.leveldb.js');
-  PouchUtils = require('../src/pouch.utils.js');
-  utils = require('./test.utils.js');
-
-  for (var k in utils) {
-    global[k] = global[k] || utils[k];
-  }
-  qunit = QUnit.module;
+  var PouchDB = require('../lib');
+  var testUtils = require('./test.utils.js');
 }
 
 adapters.map(function(adapter) {
-  qunit('attachments: ' + adapter, {
+  QUnit.module('attachments: ' + adapter, {
     setup : function () {
-      this.name = generateAdapterUrl(adapter);
-      Pouch.enableAllDbs = true;
+      this.name = testUtils.generateAdapterUrl(adapter);
+      PouchDB.enableAllDbs = true;
     },
-    teardown: cleanupTestDatabases
+    teardown: testUtils.cleanupTestDatabases
   });
 
   var binAttDoc = {
@@ -66,7 +47,7 @@ adapters.map(function(adapter) {
     _attachments: {
       "foo.json": {
         content_type: "application/json",
-        data: PouchUtils.btoa('{"Hello":"world"}')
+        data: 'eyJIZWxsbyI6IndvcmxkIn0='
       }
     }
   };
@@ -83,7 +64,7 @@ adapters.map(function(adapter) {
 
   asyncTest("Test some attachments", function() {
     var db;
-    initTestDB(this.name, function(err, _db) {
+    testUtils.initTestDB(this.name, function(err, _db) {
       db = _db;
       db.put(binAttDoc, function(err, write) {
         ok(!err, 'saved doc with attachment');
@@ -93,11 +74,11 @@ adapters.map(function(adapter) {
           equal(doc._attachments['foo.txt'].content_type, 'text/plain',
                 'doc has correct content type');
           db.getAttachment('bin_doc', 'foo.txt', function(err, res) {
-            readBlob(res, function(data) {
+            testUtils.readBlob(res, function(data) {
               strictEqual(data, 'This is a base64 encoded text', 'Correct data returned');
               db.put(binAttDoc2, function(err, rev) {
                 db.getAttachment('bin_doc2', 'foo.txt', function(err, res, xhr) {
-                  readBlob(res, function(data) {
+                  testUtils.readBlob(res, function(data) {
                     strictEqual(data, '', 'Correct data returned');
                     moreTests(rev.rev);
                   });
@@ -110,16 +91,16 @@ adapters.map(function(adapter) {
     });
 
     function moreTests(rev) {
-      var blob = makeBlob('This is no base64 encoded text');
+      var blob = testUtils.makeBlob('This is no base64 encoded text');
       db.putAttachment('bin_doc2', 'foo2.txt', rev, blob, 'text/plain', function(err, wtf) {
         db.getAttachment('bin_doc2', 'foo2.txt', function(err, res, xhr) {
-          readBlob(res, function(data) {
+          testUtils.readBlob(res, function(data) {
             ok(data, 'This is no base64 encoded text', 'Correct data returned');
             db.get('bin_doc2', {attachments: true}, function(err, res, xhr) {
               ok(res._attachments, 'Result has attachments field');
               ok(!res._attachments['foo2.txt'].stub, 'stub is false');
               equal(res._attachments['foo2.txt'].data,
-                    PouchUtils.btoa('This is no base64 encoded text'));
+                    "VGhpcyBpcyBubyBiYXNlNjQgZW5jb2RlZCB0ZXh0");
               equal(res._attachments['foo2.txt'].content_type, 'text/plain',
                     'Attachment was stored with correct content type');
               equal(res._attachments['foo.txt'].data, '');
@@ -132,11 +113,11 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test getAttachment", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put(binAttDoc, function(err, res) {
         db.getAttachment('bin_doc', 'foo.txt', function(err, res) {
           ok(!err, "Attachment read");
-          readBlob(res, function(data) {
+          testUtils.readBlob(res, function(data) {
             strictEqual(data, "This is a base64 encoded text", "correct data");
             start();
           });
@@ -146,7 +127,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test attachments in allDocs/changes", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var docs = [
         {
           _id: 'doc0'
@@ -155,7 +136,7 @@ adapters.map(function(adapter) {
           _id: 'doc1',
           _attachments: {
             'att0': {
-              data: PouchUtils.btoa('attachment0'),
+              data: "YXR0YWNobWVudDA=",
               content_type: 'text/plain'
             }
           }
@@ -164,11 +145,11 @@ adapters.map(function(adapter) {
           _id: 'doc2',
           _attachments: {
             'att0': {
-              data: PouchUtils.btoa('attachment0'),
+              data: "YXR0YWNobWVudDA=",
               content_type: 'text/plain'
             },
             'att1': {
-              data: PouchUtils.btoa('attachment1'),
+              data: "YXR0YWNobWVudDE=",
               content_type: 'text/plain'
             }
           }
@@ -214,11 +195,11 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test getAttachment with PNG", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put(pngAttDoc, function(err, res) {
         db.getAttachment('png_doc', 'foo.png', function(err, res) {
           ok(!err, "Attachment read");
-          base64Blob(res, function(data) {
+          testUtils.base64Blob(res, function(data) {
             strictEqual(data, pngAttDoc._attachments['foo.png'].data,
                         "correct data");
             start();
@@ -230,7 +211,7 @@ adapters.map(function(adapter) {
 
   asyncTest("Testing with invalid docs", function() {
     var invalidDoc = {'_id': '_invalid', foo: 'bar'};
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.bulkDocs({docs: [invalidDoc, binAttDoc]}, function(err, info) {
         ok(err, 'bad request');
         start();
@@ -239,8 +220,8 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test create attachment and doc in one go", function() {
-    initTestDB(this.name, function(err, db) {
-      var blob = makeBlob('Mytext');
+    testUtils.initTestDB(this.name, function(err, db) {
+      var blob = testUtils.makeBlob('Mytext');
       db.putAttachment('anotherdoc', 'mytext', blob, 'text/plain', function(err, res) {
         ok(res.ok);
         start();
@@ -249,7 +230,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test create attachment and doc in one go without callback", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var changes = db.changes({
         continuous: true,
         onChange: function(change){
@@ -259,20 +240,20 @@ adapters.map(function(adapter) {
               equal(typeof doc._attachments, 'object', 'doc has attachments object');
               ok(doc._attachments.mytext, 'doc has attachments attachment');
               equal(doc._attachments.mytext.data,
-                    PouchUtils.btoa('Mytext'), 'doc has attachments attachment');
+                    "TXl0ZXh0", 'doc has attachments attachment');
               changes.cancel();
               start();
             });
           }
         }
       });
-      var blob = makeBlob('Mytext');
+      var blob = testUtils.makeBlob('Mytext');
       db.putAttachment('anotherdoc2', 'mytext', blob, 'text/plain');
     });
   });
 
   asyncTest("Test create attachment without callback", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({ _id: 'anotherdoc3' }, function(err, resp) {
         ok(!err, 'doc was saved');
         var changes = db.changes({
@@ -285,14 +266,14 @@ adapters.map(function(adapter) {
                 equal(typeof doc._attachments, 'object', 'doc has attachments object');
                 ok(doc._attachments.mytext, 'doc has attachments attachment');
                 equal(doc._attachments.mytext.data,
-                      PouchUtils.btoa('Mytext'), 'doc has attachments attachment');
+                      "TXl0ZXh0", 'doc has attachments attachment');
                 changes.cancel();
                 start();
               });
             }
           }
         });
-        var blob = makeBlob('Mytext');
+        var blob = testUtils.makeBlob('Mytext');
         db.putAttachment('anotherdoc3', 'mytext', resp.rev, blob, 'text/plain');
       });
     });
@@ -300,9 +281,9 @@ adapters.map(function(adapter) {
 
 
   asyncTest("Test put attachment on a doc without attachments", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({ _id: 'mydoc' }, function(err, resp) {
-        var blob = makeBlob('Mytext');
+        var blob = testUtils.makeBlob('Mytext');
         db.putAttachment('mydoc', 'mytext', resp.rev, blob, 'text/plain', function(err, res) {
           ok(res.ok);
           start();
@@ -312,7 +293,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Testing with invalid rev", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var doc = {_id: 'adoc'};
       db.put(doc, function(err, resp) {
         ok(!err, 'Doc has been saved');
@@ -320,10 +301,10 @@ adapters.map(function(adapter) {
         doc.foo = 'bar';
         db.put(doc, function(err, resp) {
           ok(!err, 'Doc has been updated');
-          var blob = makeBlob('bar');
+          var blob = testUtils.makeBlob('bar');
           db.putAttachment('adoc', 'foo.txt', doc._rev, blob, 'text/plain', function(err) {
             ok(err, 'Attachment has not been saved');
-            equal(err.error, 'conflict', 'error is a conflict');
+            equal(err.name, 'conflict', 'error is a conflict');
             start();
           });
         });
@@ -332,7 +313,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest('Test get with attachments: true if empty attachments', function() {
-    initTestDB(this.name, function(erro, db) {
+    testUtils.initTestDB(this.name, function(erro, db) {
       db.put({_id: 'foo', _attachments: {}}, function(err, resp) {
         db.get('foo', {attachments: true}, function(err, res) {
           strictEqual(res._id, 'foo');
@@ -343,15 +324,15 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test delete attachment from a doc", function() {
-    initTestDB(this.name, function(erro, db) {
+    testUtils.initTestDB(this.name, function(erro, db) {
       db.put({_id: 'mydoc', _attachments: {
         'mytext1': {
           content_type: 'text/plain',
-          data: PouchUtils.btoa('Mytext1')
+          data: "TXl0ZXh0MQ=="
         },
         'mytext2': {
           content_type: 'text/plain',
-          data: PouchUtils.btoa('Mytext2')
+          data: "TXl0ZXh0Mg=="
         }
       }}, function(err, res) {
         var rev = res.rev;
@@ -378,7 +359,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test a document with a json string attachment", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put(jsonDoc, function(err, results) {
         ok(!err, 'saved doc with attachment');
         db.get(results.id, function(err, doc) {
@@ -387,8 +368,8 @@ adapters.map(function(adapter) {
           ok(doc._attachments['foo.json'], 'doc has attachment');
           equal(doc._attachments['foo.json'].content_type, 'application/json', 'doc has correct content type');
           db.getAttachment(results.id, 'foo.json', function(err, attachment) {
-            readBlob(attachment, function(data) {
-              equal(data, PouchUtils.atob(jsonDoc._attachments['foo.json'].data),
+            testUtils.readBlob(attachment, function(data) {
+              equal("eyJIZWxsbyI6IndvcmxkIn0=", jsonDoc._attachments['foo.json'].data,
                 'correct data');
               start();
             });
@@ -399,9 +380,9 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test remove doc with attachment", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({ _id: 'mydoc' }, function(err, resp) {
-        var blob = makeBlob('Mytext');
+        var blob = testUtils.makeBlob('Mytext');
         db.putAttachment('mydoc', 'mytext', resp.rev, blob, 'text/plain', function(err, res) {
           db.get('mydoc',{attachments:false},function(err,doc){
             db.remove(doc, function(err, resp){
@@ -415,7 +396,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Try to insert a doc with unencoded attachment", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       var doc = {
         _id: "foo",
         _attachments: {
@@ -428,14 +409,14 @@ adapters.map(function(adapter) {
       db.put(doc, function(err, res) {
         ok(err, "error returned");
         strictEqual(err.status, 500, "correct error");
-        strictEqual(err.error, "badarg", "correct error");
+        strictEqual(err.name, "badarg", "correct error");
         start();
       });
     });
   });
 
   asyncTest("Try to get attachment of unexistent doc", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.getAttachment('unexistent', 'attachment', function(err, res) {
         ok(err, "Correctly returned error");
         start();
@@ -460,7 +441,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Test stubs", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.putAttachment('a', 'foo2.txt', '', '', 'text/plain', function(err) {
         db.allDocs({include_docs: true}, function(err, docs) {
           ok(!docs.rows[0].stub, 'no stub');
@@ -471,7 +452,7 @@ adapters.map(function(adapter) {
   });
 
   asyncTest("Try to get unexistent attachment of some doc", function() {
-    initTestDB(this.name, function(err, db) {
+    testUtils.initTestDB(this.name, function(err, db) {
       db.put({_id: "foo"}, function(err, res) {
         ok(!err, "doc inserted");
         db.getAttachment('foo', 'unexistentAttachment', function(err, res) {
@@ -486,10 +467,10 @@ adapters.map(function(adapter) {
 
 repl_adapters.map(function(adapters) {
 
-  qunit('replication: ' + adapters[0] + ':' + adapters[1], {
+  QUnit.module('replication: ' + adapters[0] + ':' + adapters[1], {
     setup : function () {
-      this.name = generateAdapterUrl(adapters[0]);
-      this.remote = generateAdapterUrl(adapters[1]);
+      this.name = testUtils.generateAdapterUrl(adapters[0]);
+      this.remote = testUtils.generateAdapterUrl(adapters[1]);
     }
   });
 
@@ -512,7 +493,7 @@ repl_adapters.map(function(adapters) {
       {_id: "3", integer: 3}
     ];
 
-    initDBPair(this.name, this.remote, function(db, remote) {
+    testUtils.initDBPair(this.name, this.remote, function(db, remote) {
       remote.bulkDocs({docs: docs1}, function(err, info) {
         var replicate = db.replicate.from(remote, function() {
           db.get('bin_doc', {attachments: true}, function(err, doc) {
